@@ -640,7 +640,7 @@ func (en *Entry) Sys() interface{} {
 // 	w.Event <- Event{Op: eventType, Path: "-", FileInfo: file}
 // }
 
-func (w *Watcher) retrieveFileList(ftpConn *ftp.ServerConn) map[string]os.FileInfo {
+func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -690,7 +690,7 @@ func (w *Watcher) retrieveFileList(ftpConn *ftp.ServerConn) map[string]os.FileIn
 
 // Start begins the polling cycle which repeats every specified
 // duration until Close is called.
-func (w *Watcher) Start(d time.Duration, ftpConn *ftp.ServerConn) error {
+func (w *Watcher) Start(d time.Duration) error {
 	// Return an error if d is less than 1 nanosecond.
 	if d < time.Nanosecond {
 		return ErrDurationTooShort
@@ -719,7 +719,7 @@ func (w *Watcher) Start(d time.Duration, ftpConn *ftp.ServerConn) error {
 
 		var fileList map[string]os.FileInfo
 		// Retrieve the file list for all watched file's and dirs.
-		fileList = w.retrieveFileList(ftpConn)
+		fileList = w.retrieveFileList()
 
 		// cancel can be used to cancel the current event polling function.
 		cancel := make(chan struct{})
