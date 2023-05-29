@@ -141,12 +141,13 @@ type Watcher struct {
 	recursive  Recursive
 }
 
-func NewWatcher(recursive Recursive) *Watcher {
+func NewWatcher(recursive Recursive, id string) *Watcher {
 	// Set up the WaitGroup for w.Wait().
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	return &Watcher{
+	w := &Watcher{
+		ID:           id,
 		Event:        make(chan Event),
 		Error:        make(chan error),
 		Closed:       make(chan struct{}),
@@ -165,6 +166,13 @@ func NewWatcher(recursive Recursive) *Watcher {
 
 		recursive: recursive,
 	}
+	_db, err := w.initDB(id)
+	if err != nil {
+		panic(err)
+	}
+
+	w.db = _db
+	return w
 }
 
 // // New creates a new Watcher.
