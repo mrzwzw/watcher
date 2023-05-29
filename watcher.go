@@ -8,11 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/jlaffaye/ftp"
+	"go.etcd.io/bbolt"
 )
 
 var (
@@ -116,6 +118,8 @@ func RegexFilterHook(r *regexp.Regexp, useFullPath bool) FilterFileHookFunc {
 
 // Watcher describes a process that watches files for changes.
 type Watcher struct {
+	ID     string
+	db     *bbolt.DB
 	Event  chan Event
 	Error  chan error
 	Closed chan struct{}
@@ -133,7 +137,8 @@ type Watcher struct {
 	ignoreHidden bool                   // ignore hidden files or not.
 	maxEvents    int                    // max sent events per cycle
 	// docType      map[string]listWalk
-	recursive Recursive
+	fileOffset map[string]uint64
+	recursive  Recursive
 }
 
 func NewWatcher(recursive Recursive) *Watcher {
@@ -156,7 +161,8 @@ func NewWatcher(recursive Recursive) *Watcher {
 		ops:          map[Op]struct{}{},
 		ignoreHidden: false,
 		maxEvents:    0,
-		// docType:      map[string]listWalk{},
+		fileOffset:   make(map[string]uint64),
+
 		recursive: recursive,
 	}
 }
@@ -874,4 +880,89 @@ func (w *Watcher) Close() {
 	w.mu.Unlock()
 	// Send a close signal to the Start method.
 	w.close <- struct{}{}
+}
+
+func (w *Watcher) initDB(id string) (*bbolt.DB, error) {
+	_db, err := bbolt.Open("./"+id, 0666, &bbolt.Options{Timeout: time.Second})
+	if err != nil {
+		return nil, fmt.Errorf("数据库连接失败，Error: %w", err)
+	}
+
+	if err := _db.Update(func(tx *bbolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte(id))
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("创建或打开bucket失败，Error: %w", err)
+	}
+
+	if err := _db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(id))
+
+		c := b.Cursor()
+
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			_n, err := strconv.ParseUint(string(v), 10, 64)
+			if err != nil {
+				return err
+			}
+
+			w.fileOffset[string(k)] = _n
+		}
+
+		return nil
+	}); err != nil {
+		return nil, fmt.Errorf("加载数据失败，Error: %w", err)
+	}
+
+	return _db, nil
+}
+
+func (w *Watcher) GetOffset(fn string) uint64 {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	n, ok := w.fileOffset[fn]
+	if ok {
+		return n
+	}
+
+	return 0
+}
+
+func (w *Watcher) addOffset(fn string, add uint64) uint64 {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.fileOffset[fn] += add
+
+	return w.fileOffset[fn]
+}
+
+// UpdateOffset 将文件fn最近读取的计数recentCount存入.
+func (w *Watcher) UpdateOffset(fn string, recentCount uint64) error {
+	if recentCount <= 0 {
+		return nil
+	}
+
+	_n := w.addOffset(fn, recentCount)
+
+	_db := w.db
+
+	if err := _db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(w.ID))
+
+		if err := b.Put([]byte(fn), []byte(strconv.FormatUint(_n, 10))); err != nil {
+			return fmt.Errorf("更新数据库失败，Error: %w", err)
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
