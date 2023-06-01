@@ -1,33 +1,12 @@
 # watcher
 
-[![Build Status](https://travis-ci.org/radovskyb/watcher.svg?branch=master)](https://travis-ci.org/radovskyb/watcher)
-
-`watcher` is a Go package for watching for files or directory changes (recursively or non recursively) without using filesystem events, which allows it to work cross platform consistently.
-
-`watcher` watches for changes and notifies over channels either anytime an event or an error has occurred.
-
-Events contain the `os.FileInfo` of the file or directory that the event is based on and the type of event and file or directory path.
-
-[Installation](#installation)  
-[Features](#features)  
-[Example](#example)  
-[Contributing](#contributing)  
-[Watcher Command](#command)  
-
-# Update
-- Event.OldPath has been added [Aug 17, 2019]
-- Added new file filter hooks (Including a built in regexp filtering hook) [Dec 12, 2018]
-- Event.Path for Rename and Move events is now returned in the format of `fromPath -> toPath`
-
-#### Chmod event is not supported under windows.
-
-# Installation
+## Installation
 
 ```shell
 go get -u github.com/mrzwzw/watcher/...
 ```
 
-# Features
+## Features
 
 - Customizable polling interval.
 - Filter Events.
@@ -40,12 +19,7 @@ go get -u github.com/mrzwzw/watcher/...
 - List the files being watched.
 - Trigger custom events.
 
-# Todo
-
-- Write more tests.
-- Write benchmarks.
-
-# Example
+## Example
 
 ```go
 package main
@@ -55,11 +29,19 @@ import (
 	"log"
 	"time"
 
-	"github.com/radovskyb/watcher"
+	"github.com/mrzwzw/watcher"
 )
 
+type File struct {
+}
+func (f *File) ListRecursive(name string, ignored map[string]struct{}, ignoreHidden bool,
+	ffh []watcher.FilterFileHookFunc) (map[string]os.FileInfo, error) {
+    //
+}
+
 func main() {
-	w := watcher.New()
+    //
+    w := watcher.NewWatcher(new(File), "devdb")
 
 	// SetMaxEvents to 1 to allow at most 1 event's to be received
 	// on the Event channel per watching cycle.
@@ -119,63 +101,3 @@ func main() {
 	}
 }
 ```
-
-# Contributing
-If you would ike to contribute, simply submit a pull request.
-
-# Command
-
-`watcher` comes with a simple command which is installed when using the `go get` command from above.
-
-# Usage
-
-```
-Usage of watcher:
-  -cmd string
-    	command to run when an event occurs
-  -dotfiles
-    	watch dot files (default true)
-  -ignore string
-        comma separated list of paths to ignore
-  -interval string
-    	watcher poll interval (default "100ms")
-  -keepalive
-    	keep alive when a cmd returns code != 0
-  -list
-    	list watched files on start
-  -pipe
-    	pipe event's info to command's stdin
-  -recursive
-    	watch folders recursively (default true)
-  -startcmd
-    	run the command when watcher starts
-```
-
-All of the flags are optional and watcher can also be called by itself:
-```shell
-watcher
-```
-(watches the current directory recursively for changes and notifies any events that occur.)
-
-A more elaborate example using the `watcher` command:
-```shell
-watcher -dotfiles=false -recursive=false -cmd="./myscript" main.go ../
-```
-In this example, `watcher` will ignore dot files and folders and won't watch any of the specified folders recursively. It will also run the script `./myscript` anytime an event occurs while watching `main.go` or any files or folders in the previous directory (`../`).
-
-Using the `pipe` and `cmd` flags together will send the event's info to the command's stdin when changes are detected.
-
-First create a file called `script.py` with the following contents:
-```python
-import sys
-
-for line in sys.stdin:
-	print (line + " - python")
-```
-
-Next, start watcher with the `pipe` and `cmd` flags enabled:
-```shell
-watcher -cmd="python script.py" -pipe=true
-```
-
-Now when changes are detected, the event's info will be output from the running python script.

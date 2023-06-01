@@ -141,38 +141,61 @@ type Watcher struct {
 	recursive  Recursive
 }
 
-func NewWatcher(recursive Recursive, id string) *Watcher {
+func NewWatcher(recursive Recursive, id ...string) *Watcher {
 	// Set up the WaitGroup for w.Wait().
 	var wg sync.WaitGroup
 	wg.Add(1)
 
-	w := &Watcher{
-		ID:           id,
-		Event:        make(chan Event),
-		Error:        make(chan error),
-		Closed:       make(chan struct{}),
-		close:        make(chan struct{}),
-		wg:           &wg,
-		mu:           new(sync.Mutex),
-		ffh:          []FilterFileHookFunc{},
-		running:      false,
-		names:        make(map[string]bool),
-		files:        make(map[string]os.FileInfo),
-		ignored:      make(map[string]struct{}),
-		ops:          map[Op]struct{}{},
-		ignoreHidden: false,
-		maxEvents:    0,
-		fileOffset:   make(map[string]uint64),
+	if len(id) > 0 {
+		w := &Watcher{
+			ID:           id[0],
+			Event:        make(chan Event),
+			Error:        make(chan error),
+			Closed:       make(chan struct{}),
+			close:        make(chan struct{}),
+			wg:           &wg,
+			mu:           new(sync.Mutex),
+			ffh:          []FilterFileHookFunc{},
+			running:      false,
+			names:        make(map[string]bool),
+			files:        make(map[string]os.FileInfo),
+			ignored:      make(map[string]struct{}),
+			ops:          map[Op]struct{}{},
+			ignoreHidden: false,
+			maxEvents:    0,
+			fileOffset:   make(map[string]uint64),
 
-		recursive: recursive,
-	}
-	_db, err := w.initDB(id)
-	if err != nil {
-		panic(err)
-	}
+			recursive: recursive,
+		}
+		_db, err := w.initDB(id[0])
+		if err != nil {
+			panic(err)
+		}
 
-	w.db = _db
-	return w
+		w.db = _db
+		return w
+
+	} else {
+		return &Watcher{
+			Event:        make(chan Event),
+			Error:        make(chan error),
+			Closed:       make(chan struct{}),
+			close:        make(chan struct{}),
+			wg:           &wg,
+			mu:           new(sync.Mutex),
+			ffh:          []FilterFileHookFunc{},
+			running:      false,
+			names:        make(map[string]bool),
+			files:        make(map[string]os.FileInfo),
+			ignored:      make(map[string]struct{}),
+			ops:          map[Op]struct{}{},
+			ignoreHidden: false,
+			maxEvents:    0,
+			fileOffset:   make(map[string]uint64),
+
+			recursive: recursive,
+		}
+	}
 }
 
 // // New creates a new Watcher.
@@ -811,7 +834,6 @@ func (w *Watcher) pollEvents(files map[string]os.FileInfo, evt chan Event,
 			case <-cancel:
 				return
 			case evt <- Event{Write, path, path, info}:
-				log.Println("555555:")
 				log.Println(Event{Write, path, path, info})
 
 			}
@@ -970,6 +992,26 @@ func (w *Watcher) UpdateOffset(fn string, recentCount uint64) error {
 		return nil
 	}); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (w *Watcher) ClearOffsetByPath(fn string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	_db := w.db
+
+	if err := _db.Update(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(w.ID))
+		var err error
+		delete(w.fileOffset, fn)
+		err = b.Delete([]byte(fn))
+
+		return err
+	}); err != nil {
+		return fmt.Errorf("从数据库中删除数据失败, Error: %w", err)
 	}
 
 	return nil
