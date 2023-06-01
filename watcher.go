@@ -727,7 +727,7 @@ func (w *Watcher) retrieveFileList() map[string]os.FileInfo {
 
 // Start begins the polling cycle which repeats every specified
 // duration until Close is called.
-func (w *Watcher) Start(d time.Duration) error {
+func (w *Watcher) Start(d time.Duration, filterTime ...time.Duration) error {
 	// Return an error if d is less than 1 nanosecond.
 	if d < time.Nanosecond {
 		return ErrDurationTooShort
@@ -769,6 +769,33 @@ func (w *Watcher) Start(d time.Duration) error {
 
 		// numEvents holds the number of events for the current cycle.
 		numEvents := 0
+
+		if len(filterTime) > 0 {
+			for k, _ := range w.fileOffset {
+
+				now := time.Now()
+				t := now.Sub(w.files[k].ModTime())
+
+				if t > filterTime[0] {
+					if err := w.ClearOffsetByPath(k); err != nil {
+						return err
+					}
+					log.Println("delete path:", k)
+
+				}
+
+			}
+		}
+		for k, _ := range w.fileOffset {
+
+			now := time.Now()
+			t := now.Sub(w.files[k].ModTime())
+
+			if t < filterTime[0] {
+				return nil
+			}
+
+		}
 
 	inner:
 		for {
