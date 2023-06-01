@@ -786,16 +786,6 @@ func (w *Watcher) Start(d time.Duration, filterTime ...time.Duration) error {
 
 			}
 		}
-		for k, _ := range w.fileOffset {
-
-			now := time.Now()
-			t := now.Sub(w.files[k].ModTime())
-
-			if t < filterTime[0] {
-				return nil
-			}
-
-		}
 
 	inner:
 		for {
