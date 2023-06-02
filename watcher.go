@@ -870,7 +870,7 @@ func (w *Watcher) pollEvents(files map[string]os.FileInfo, evt chan Event,
 		}
 	}
 
-	// Check for renames and moves.
+	// Check for renames and moves..
 	for path1, info1 := range removes {
 		for path2, info2 := range creates {
 			if sameFile(info1, info2) {
