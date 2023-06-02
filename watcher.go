@@ -776,13 +776,19 @@ func (w *Watcher) Start(d time.Duration, filterTime ...time.Duration) error {
 				for k, _ := range w.fileOffset {
 
 					now := time.Now()
+					w.mu.Lock()
 					t := now.Sub(w.files[k].ModTime())
+					w.mu.Unlock()
 
 					if t > filterTime[0] {
 						if err := w.ClearOffsetByPath(k); err != nil {
 							return err
 						}
+						log.Println("delete path:", k)
+
 					}
+					log.Println("w.fileOffset:", w.fileOffset)
+
 				}
 			}
 		}
