@@ -794,8 +794,6 @@ func (w *Watcher) Start(d time.Duration, filterTime ...time.Duration) error {
 						log.Println("delete path:", k)
 
 					}
-					log.Println("w.fileOffset:", w.fileOffset)
-
 				}
 			}
 		}
