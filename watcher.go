@@ -776,9 +776,16 @@ func (w *Watcher) Start(d time.Duration, filterTime ...time.Duration) error {
 				for k, _ := range w.fileOffset {
 
 					now := time.Now()
-					w.mu.Lock()
-					t := now.Sub(w.files[k].ModTime())
-					w.mu.Unlock()
+					var t time.Duration
+					if w.files[k] != nil {
+						t = now.Sub(w.files[k].ModTime())
+					} else {
+						if err := w.ClearOffsetByPath(k); err != nil {
+							return err
+						}
+						log.Println("delete path:", k)
+
+					}
 
 					if t > filterTime[0] {
 						if err := w.ClearOffsetByPath(k); err != nil {
@@ -870,7 +877,7 @@ func (w *Watcher) pollEvents(files map[string]os.FileInfo, evt chan Event,
 		}
 	}
 
-	// Check for renames and moves..
+	// Check for renames and moves.
 	for path1, info1 := range removes {
 		for path2, info2 := range creates {
 			if sameFile(info1, info2) {
